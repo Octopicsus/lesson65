@@ -32,7 +32,6 @@ router.get('/protected', ensureAuthenticated(), async (req, res) => {
             newList: newListData
         });
     } catch (error) {
-        console.error('Error in protected route:', error);
         res.status(500).send('Server Error');
     }
 });

@@ -19,7 +19,6 @@ export async function deleteUser(userId) {
                 }
             } 
         } catch (error) {
-            console.error('Delete error:', error);
             alert('Error deleting user: ' + error.message);
         }
     }
