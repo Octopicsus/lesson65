@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import passport from './middleware/passport.js';
 
 import authRoutes from './routes/auth.js';
-import apiRoutes from './routes/api.js';
+import apiRoutes from './api/api.js';
 import usersRoutes from './routes/users.js';
 import newlistRoutes from './routes/newlist.js';
 import pagesRoutes from './routes/pages.js';
