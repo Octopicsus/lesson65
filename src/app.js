@@ -1,15 +1,30 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import session from 'express-session';
-import { MongoClient } from 'mongodb'
-import dotenv from 'dotenv'
+import dotenv from 'dotenv';
+import {
+    connect,
+    MyDBC,
+    MyDBC_NEW,
+    getUserForAuth,
+    getAllUsersForAuth,
+    readNewList,
+    saveUser,
+    registerUser,
+    verifyPassword,
+    hashPassword,
+    copyAllUsersDB,
+    deleteUserDB,
+    deleteNewListItemDB,
+    cleanAllUsersDB,
+    updateNewListUserDB,
+    createUserDB
+} from './functions/server.js';
 
 dotenv.config();
 
@@ -18,61 +33,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 const JWT_SECRET = 'secret-key';
-const SALT_ROUNDS = 10;
 const TOKEN_EXPIRY = '24h';
-
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.b3gzjlp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`
-const dbName = 'Octo'
-
-const client = new MongoClient(uri)
-
-const connect = async () => {
-    await client.connect()
-    const myDB = client.db(dbName)
-    return myDB
-}
-
-async function readUsers() {
-    const myDB = await connect();
-    const usersCollection = myDB.collection('users');
-    const users = await usersCollection.find({}).toArray();
-  
-    return users;
-}
-
-async function saveUser(user) {
-    const myDB = await connect();
-    const usersCollection = myDB.collection('users');
-    await usersCollection.insertOne(user);
-}
-
-async function registerUser(name, password) {
-    const users = await readUsers();
-    const existingUser = users.find(user => user.name === name);
-
-    if (existingUser) {
-        throw new Error('User with this name already exists');
-    }
-
-    const hashedPassword = await hashPassword(password);
-    const newUser = {
-        id: uuidv4(),
-        name,
-        password: hashedPassword,
-        createdAt: new Date().toISOString()
-    };
-
-    await saveUser(newUser);
-    return newUser;
-}
-
-async function verifyPassword(plainPassword, hashedPassword) {
-    return await bcrypt.compare(plainPassword, hashedPassword);
-}
-
-async function hashPassword(password) {
-    return await bcrypt.hash(password, SALT_ROUNDS);
-}
 
 
 
@@ -81,25 +42,19 @@ passport.use(new LocalStrategy({
     passwordField: 'password'
 }, async (username, password, done) => {
     try {
-        console.log('Attempting login with username:', username);
-        const users = await readUsers();
-        console.log('Found users in database:', users.length);
-        const user = users.find(user => user.name === username);
-        console.log('User found:', user ? user.name : 'Not found');
+        const user = await getUserForAuth(username);
 
         if (!user) {
             return done(null, false, { message: 'Invalid username or password' });
         }
 
         const isValidPassword = await verifyPassword(password, user.password);
-        console.log('Password valid:', isValidPassword);
         if (!isValidPassword) {
             return done(null, false, { message: 'Invalid username or password' });
         }
 
         return done(null, user);
     } catch (error) {
-        console.error('Passport strategy error:', error);
 
         return done(error);
     }
@@ -111,8 +66,13 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
     try {
-        const users = await readUsers();
+        const users = await getAllUsersForAuth();
         const user = users.find(user => user.id === id);
+
+        if (!user) {
+            return done(null, false);
+        }
+
         done(null, user);
     } catch (error) {
         done(error);
@@ -132,6 +92,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/src', express.static(path.join(__dirname, '.')));
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -155,10 +116,7 @@ app.get('/', (req, res) => {
 });
 
 app.post('/auth/login', (req, res, next) => {
-    console.log('Login attempt with body:', req.body);
     passport.authenticate('local', (error, user, info) => {
-        console.log('Passport authenticate result:', { error, user: user ? user.name : null, info });
-
         if (error) {
             return res.render('index', { error: 'Authentication error' });
         }
@@ -198,7 +156,6 @@ app.post('/auth/register', async (req, res) => {
 
     try {
         const newUser = await registerUser(name, password);
-
         req.login(newUser, (error) => {
             if (error) {
                 return res.render('partials/register', { error: 'Registration successful but login failed' });
@@ -240,7 +197,6 @@ app.post('/api/register', async (req, res) => {
 
     try {
         const newUser = await registerUser(name, password);
-
         req.logIn(newUser, (error) => {
             if (error) {
                 return res.status(500).json({ error: 'Registration successful but login failed' });
@@ -270,13 +226,31 @@ app.post('/api/logout', ensureAuthenticated(true), (req, res) => {
 });
 
 app.get('/protected', ensureAuthenticated(), async (req, res) => {
-    const users = await readUsers();
-    const usersData = users.map(user => ({
+    const allUsers = await getAllUsersForAuth();
+    if (allUsers.length === 0) {
+
+        req.logout((err) => {
+            if (err) console.error('Logout error:', err);
+            req.session.destroy(() => {
+                return res.redirect('/');
+            });
+        });
+        return;
+    }
+
+    const usersData = allUsers.map(user => ({
         id: user.id,
         name: user.name,
         createdAt: user.createdAt
     }));
-    res.render('partials/protected', { user: req.user, users: usersData });
+    const newList = await readNewList();
+    const newListData = newList.map(item => ({
+        id: item.id || item._id,
+        name: item.name || item.login,
+        createdAt: item.createdAt
+    }));
+
+    res.render('partials/protected', { user: req.user, users: usersData, newList: newListData });
 });
 
 app.get('/api/protected', ensureAuthenticated(true), (req, res) => {
@@ -302,7 +276,7 @@ app.post('/api/verify-token', async (req, res) => {
 });
 
 app.get('/api/users', ensureAuthenticated(true), async (req, res) => {
-    const users = await readUsers();
+    const users = await getAllUsersForAuth();
     const usersData = users.map(user => ({
         id: user.id,
         name: user.name,
@@ -314,10 +288,7 @@ app.get('/api/users', ensureAuthenticated(true), async (req, res) => {
 app.post('/users', async (req, res) => {
     try {
         const { login, name } = req.body
-        const myDB = await connect()
-        const usersCollection = myDB.collection('users')
-        const query = { login, name }
-        const result = await usersCollection.insertOne(query)
+        const result = await createUserDB(login, name)
         res.json(result)
     } catch (error) {
         res.status(500).json({ error: error.message })
@@ -327,11 +298,7 @@ app.post('/users', async (req, res) => {
 app.delete('/users', async (req, res) => {
     try {
         const { id } = req.body
-        const myDB = await connect()
-        const usersCollection = myDB.collection('users')
-
-        const query = { id: id }
-        const result = await usersCollection.deleteOne(query)
+        const result = await deleteUserDB(id)
 
         if (result.deletedCount === 1) {
             res.json({ message: 'User deleted successfully', deletedCount: result.deletedCount })
@@ -343,6 +310,60 @@ app.delete('/users', async (req, res) => {
     }
 })
 
+app.delete('/newlist', async (req, res) => {
+    try {
+        const { id } = req.body
+        const result = await deleteNewListItemDB(id)
+
+        if (result.deletedCount === 1) {
+            res.json({ message: 'Item deleted successfully', deletedCount: result.deletedCount })
+        } else {
+            res.status(404).json({ message: 'Item not found' })
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+})
+
+app.post('/copy-users', async (req, res) => {
+    try {
+        const result = await copyAllUsersDB()
+        res.json(result)
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+})
+
+app.put('/newlist', async (req, res) => {
+    try {
+        const { id, newName } = req.body
+        const result = await updateNewListUserDB(id, newName)
+
+        if (!result) {
+            return res.status(404).json({ message: 'User not found' })
+        }
+
+        if (result.modifiedCount === 1) {
+            res.json({ message: 'User updated successfully', modifiedCount: result.modifiedCount })
+        } else {
+            res.status(404).json({ message: 'User not found or no changes made' })
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+})
+
+app.delete('/clean-newlist', async (req, res) => {
+    try {
+        const result = await cleanAllUsersDB()
+        res.json({
+            message: 'All items deleted successfully',
+            deletedCount: result.deletedCount
+        })
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+})
 
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
