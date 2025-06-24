@@ -143,7 +143,6 @@ th:last-child, td:last-child {
     background-color: #0056b3;
 }
 
-/* Модальное окно */
 .modal {
     display: none;
     position: fixed;
@@ -228,3 +227,48 @@ a {
 a:hover {
     background-color: #0056b3;
 }
+
+.list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.sort-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sort-controls label {
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+}
+
+.sort-controls select {
+    padding: 5px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: white;
+    color: #333;
+    cursor: pointer;
+}
+
+.sort-controls select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 3px rgba(0, 123, 255, 0.3);
+}
+
+
+
+

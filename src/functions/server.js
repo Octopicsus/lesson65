@@ -17,16 +17,33 @@ const client = new MongoClient(uri);
 export const connect = async () => {
     await client.connect();
     const myDB = client.db(dbName);
+
     return myDB;
 };
 
-export async function readUsers() {
+export async function readUsers(options = {}) {
     const myDB = await connect();
     const usersCollection = myDB.collection(MyDBC);
-    const users = await usersCollection.find({}, { 
+    const { sort = {}, skip = 0, limit = 0 } = options;
+    
+    let query = usersCollection.find({}, { 
         projection: { password: 0 } 
-    }).toArray();
-  
+    });
+
+    if (Object.keys(sort).length > 0) {
+        query = query.sort(sort);
+    }
+
+    if (skip > 0) {
+        query = query.skip(skip);
+    }
+    
+    if (limit > 0) {
+        query = query.limit(limit);
+    }
+
+    const users = await query.toArray();
+
     return users;
 }
 
@@ -34,29 +51,65 @@ export async function getUserForAuth(username) {
     const myDB = await connect();
     const usersCollection = myDB.collection(MyDBC);
     const user = await usersCollection.findOne({ name: username });
+
     return user;
 }
 
-export async function getAllUsersForAuth() {
+export async function getAllUsersForAuth(options = {}) {
     const myDB = await connect();
     const usersCollection = myDB.collection(MyDBC);
-    const users = await usersCollection.find({}).toArray();
+    const { sort = {}, skip = 0, limit = 0 } = options;
+    
+    let query = usersCollection.find({});
+
+    if (Object.keys(sort).length > 0) {
+        query = query.sort(sort);
+    }
+
+    if (skip > 0) {
+        query = query.skip(skip);
+    }
+    
+    if (limit > 0) {
+        query = query.limit(limit);
+    }
+
+    const users = await query.toArray();
+
     return users;
 }
 
-export async function readNewList() {
+export async function readNewList(options = {}) {
     const myDB = await connect();
     const newListCollection = myDB.collection(MyDBC_NEW);
-    const newList = await newListCollection.find({}, { 
+    
+    const { sort = {}, skip = 0, limit = 0 } = options;
+    
+    let query = newListCollection.find({}, { 
         projection: { password: 0 } 
-    }).toArray();
-  
+    });
+
+    if (Object.keys(sort).length > 0) {
+        query = query.sort(sort);
+    }
+
+    if (skip > 0) {
+        query = query.skip(skip);
+    }
+    
+    if (limit > 0) {
+        query = query.limit(limit);
+    }
+
+    const newList = await query.toArray();
+
     return newList;
 }
 
 export async function saveUser(user) {
     const myDB = await connect();
     const usersCollection = myDB.collection(MyDBC);
+
     await usersCollection.insertOne(user);
 }
 
@@ -77,6 +130,7 @@ export async function registerUser(name, password) {
     };
 
     await saveUser(newUser);
+
     return newUser;
 }
 
@@ -99,6 +153,7 @@ export async function copyAllUsersDB() {
     }
 
     const result = await newListCollection.insertMany(users);
+
     return { 
         message: 'Users copied successfully', 
         copiedCount: result.insertedCount 
@@ -110,6 +165,8 @@ export async function deleteUserDB(id) {
     const usersCollection = myDB.collection(MyDBC);
     const query = { id: id };
     const result = await usersCollection.deleteOne(query);
+    const remainingUsers = await usersCollection.countDocuments({});
+    
     return result;
 }
 
@@ -118,6 +175,7 @@ export async function deleteNewListItemDB(id) {
     const newListCollection = myDB.collection(MyDBC_NEW);
     const query = { id: id };
     const result = await newListCollection.deleteOne(query);
+
     return result;
 }
 
@@ -125,13 +183,13 @@ export async function cleanAllUsersDB() {
     const myDB = await connect();
     const newListCollection = myDB.collection(MyDBC_NEW);
     const result = await newListCollection.deleteMany({});
+
     return result;
 }
 
 export async function updateNewListUserDB(id, newName) {
     const myDB = await connect();
     const newListCollection = myDB.collection(MyDBC_NEW);
-
     const existingUser = await newListCollection.findOne({ id: id });
     
     if (!existingUser) {
@@ -156,5 +214,6 @@ export async function createUserDB(login, name) {
     const usersCollection = myDB.collection(MyDBC);
     const query = { login, name };
     const result = await usersCollection.insertOne(query);
+    
     return result;
 }

@@ -12,12 +12,14 @@ export async function deleteUser(userId) {
             const result = await response.json();
             
             if (response.ok) {
-                alert('User deleted successfully');
-                location.reload(); 
-            } else {
-                alert('Error: ' + result.message);
-            }
+                if (result.shouldRedirect) {
+                    window.location.href = '/';
+                } else {
+                    location.reload(); 
+                }
+            } 
         } catch (error) {
+            console.error('Delete error:', error);
             alert('Error deleting user: ' + error.message);
         }
     }
@@ -39,9 +41,7 @@ export async function deleteNewListItem(itemId) {
             if (response.ok) {
                 alert('Item deleted successfully');
                 location.reload(); 
-            } else {
-                alert('Error: ' + result.message);
-            }
+            } 
         } catch (error) {
             alert('Error deleting item: ' + error.message);
         }
@@ -61,11 +61,8 @@ export async function copyAllUsers() {
             const result = await response.json();
             
             if (response.ok) {
-                alert(`${result.copiedCount} users copied successfully`);
                 location.reload(); 
-            } else {
-                alert('Error: ' + result.message);
-            }
+            } 
         } catch (error) {
             alert('Error copying users: ' + error.message);
         }
@@ -75,7 +72,7 @@ export async function copyAllUsers() {
 export async function cleanAllUsers() {
     if (confirm('Are you sure you want to delete ALL items from Other List? This action cannot be undone!')) {
         try {
-            const response = await fetch('/clean-newlist', {
+            const response = await fetch('/newlist/clean', {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
@@ -85,11 +82,8 @@ export async function cleanAllUsers() {
             const result = await response.json();
             
             if (response.ok) {
-                alert(`${result.deletedCount} items deleted successfully`);
                 location.reload(); 
-            } else {
-                alert('Error: ' + result.message);
-            }
+            } 
         } catch (error) {
             alert('Error cleaning list: ' + error.message);
         }

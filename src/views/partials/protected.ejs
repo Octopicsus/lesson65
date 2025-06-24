@@ -15,16 +15,11 @@
       </div>
 
       <div class="users-list">
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 10px;
-          "
-        >
+        <div class="list-header">
           <h3>Registered Users</h3>
-          <button class="copy-btn" onclick="copyAllUsers()">Copy all</button>
+          <button class="copy-btn" onclick="copyAllUsers()">
+            Copy all to Other List
+          </button>
         </div>
         <table>
           <thead>
@@ -54,14 +49,7 @@
       </div>
 
       <div class="users-list">
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 10px;
-          "
-        >
+        <div class="list-header">
           <h3>Other List</h3>
           <button class="clean-btn" onclick="cleanAllUsers()">Clean all</button>
         </div>
@@ -128,6 +116,7 @@
       window.editUser = editUser;
       window.closeModal = closeModal;
       window.saveEdit = saveEdit;
+
       window.onclick = function (event) {
         const modal = document.getElementById("editModal");
         if (event.target === modal) {
